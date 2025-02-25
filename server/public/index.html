@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Global</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <link rel="stylesheet" href="./css/main.css ">
+    <script>
+        let socket = io();
+        let usuario = {};
+
+        function seleccionarAvatar(img) {
+            document.querySelectorAll(".avatar").forEach(avatar => avatar.classList.remove("selected"));
+            img.classList.add("selected");
+            usuario.avatar = img.src;
+        }
+
+        function mostrarMensajeError(mensaje) {
+            let mensajeError = document.getElementById("mensajeError");
+            mensajeError.textContent = mensaje;
+            mensajeError.classList.remove("hidden");
+        }
+
+        function accederChat() {
+            let nombre = document.getElementById("nombre").value.trim();
+            let estado = document.getElementById("estado").value.trim();
+
+            if (!nombre) {
+                mostrarMensajeError("Por favor, ingresa tu nombre.");
+                return;
+            }
+
+            if (!estado) {
+                mostrarMensajeError("Por favor, ingresa tu estado.");
+                return;
+            }
+
+            if (!usuario.avatar) {
+                mostrarMensajeError("Por favor, selecciona un avatar o sube una imagen.");
+                return;
+            }
+
+            document.getElementById("mensajeError").classList.add("hidden");
+
+            usuario.nombre = nombre;
+            usuario.estado = estado;
+
+            socket.emit("nombre", usuario);
+
+            document.getElementById("login-container").classList.remove("loginContainer");
+            document.getElementById("login-container").classList.add("hidden");
+            document.getElementById("chatContainer").classList.remove("hidden");
+            document.getElementById("chatContainer").classList.add("contenedorChat");
+        }
+
+        window.onload = () => {
+            document.getElementById("acceder").addEventListener("click", accederChat);
+
+            const btnEnviar = document.getElementById("enviar");
+            const btnImagen = document.getElementById("enviarImagen");
+            const listaMensajes = document.getElementById("listaMensajes");
+            const listaUsuarios = document.getElementById("listaUsuarios");
+            const mensajeInput = document.getElementById("input");
+            const imagenInput = document.getElementById("inputImagen");
+            let escribiendoTimeout;
+
+            btnEnviar.addEventListener("click", () => {
+                if (!mensajeInput.value.trim()) return;
+                socket.emit("mensaje", { ...usuario, mensaje: mensajeInput.value });
+                mensajeInput.value = "";
+            });
+
+            btnImagen.addEventListener("click", () => {
+                if (!imagenInput.value.trim()) return;
+                socket.emit("imagen", { ...usuario, urlImagen: imagenInput.value });
+                imagenInput.value = "";
+            });
+
+            mensajeInput.addEventListener("keypress", (e) => {
+                if (e.key === "Enter") btnEnviar.click();
+
+                socket.emit("escribiendo", usuario);
+
+                clearTimeout(escribiendoTimeout);
+                escribiendoTimeout = setTimeout(() => {
+                    socket.emit("dejoDeEscribir", usuario);
+                }, 2000);
+            });
+
+            document.getElementById("subirImagen").addEventListener("change", function (event) {
+                let file = event.target.files[0];
+                if (file) {
+                    let reader = new FileReader();
+                    reader.onload = function (e) {
+                        let imagenSubida = document.getElementById("imagenPreview");
+                        imagenSubida.src = e.target.result;
+                        imagenSubida.classList.remove("hidden");
+
+                        // Quitar la selección de otros avatares
+                        document.querySelectorAll(".avatar").forEach(avatar => avatar.classList.remove("selected"));
+                        imagenSubida.classList.add("selected");
+
+                        usuario.avatar = e.target.result; 
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            socket.on("holaServidor", (datos) => {
+                let li = document.createElement("li");
+                li.innerHTML = `<img src='${datos.avatar}' class='avatar'> 
+                    <b>${datos.nombre} (${datos.estado}):</b> 
+                    <p>${datos.mensaje} </p>
+                    <span style="font-size: 0.8em; color: gray;">(${datos.hora})</span>`;
+                listaMensajes.appendChild(li);
+            });
+
+            socket.on("enviarImagen", (datos) => {
+                let li = document.createElement("li");
+                li.innerHTML = `<img src='${datos.avatar}' class='avatar'> <b>${datos.nombre} (${datos.estado}):</b> <img src='${datos.urlImagen}' style='max-width: 300px'>`;
+                listaMensajes.appendChild(li);
+            });
+
+            socket.on('nuevaConexion', (datos) => {
+                let li = document.createElement("li");
+                li.innerHTML = `<b>${datos.nombre} (${datos.estado}) se ha conectado</b>`;
+                listaMensajes.appendChild(li);
+            });
+
+            socket.on('desconexion', (datos) => {
+                let li = document.createElement("li");
+                li.innerHTML = `<b>${datos.nombre} (${datos.estado}) se ha desconectado</b>`;
+                listaMensajes.appendChild(li);
+            });
+
+            socket.on('actualizarUsuarios', (usuarios) => {
+                listaUsuarios.innerHTML = "";
+                usuarios.forEach(user => {
+                    let li = document.createElement("li");
+                    li.innerHTML = `<img src='${user.avatar}' class='avatar'> <b>${user.nombre}</b> (${user.estado})`;
+                    listaUsuarios.appendChild(li);
+                });
+            });
+
+            // Mostrar mensaje de "escribiendo..."
+            socket.on("escribiendo", (usuario) => {
+                document.getElementById("escribiendoMensaje").textContent = `${usuario.nombre} está escribiendo...`;
+            });
+
+            // Ocultar el mensaje después de 2 segundos
+            socket.on("dejoDeEscribir", () => {
+                document.getElementById("escribiendoMensaje").textContent = "";
+            });
+        };
+    </script>
+</head>
+
+<body>
+    <!-- Pantalla de inicio de sesión -->
+    <div id="login-container" class="loginContainer">
+        <div id="login">
+            <h1>Bienvenido al Chat</h1>
+            <input type="text" id="nombre" placeholder="Escribe tu nombre"><br>
+            <input type="text" id="estado" placeholder="Estado (Ej: Disponible)"><br>
+
+            <h3>Selecciona un avatar:</h3>
+            <div>
+                <img src="./img/avatar1.png" class="avatar" onclick="seleccionarAvatar(this)">
+                <img src="./img/avatar2.png" class="avatar" onclick="seleccionarAvatar(this)">
+                <img src="./img/avatar3.png" class="avatar" onclick="seleccionarAvatar(this)">
+                <img src="./img/avatar4.png" class="avatar" onclick="seleccionarAvatar(this)">
+                <img src="./img/avatar5.png" class="avatar" onclick="seleccionarAvatar(this)">
+                <img src="./img/avatar6.png" class="avatar" onclick="seleccionarAvatar(this)">
+            </div>
+            <p>O sube tu propia imagen:</p>
+            <input type="file" id="subirImagen">
+            <img id="imagenPreview" class="avatar hidden"><br>
+            <p id="mensajeError" class="mensajeError hidden"></p>
+            <button id="acceder">Acceder</button>
+        </div>
+    </div>
+
+    <div id="chatContainer" class="hidden">
+        <div class="usuarios-conectados">
+            <h2>Usuarios Conectados</h2>
+            <ul id="listaUsuarios"></ul>
+        </div>
+
+        <div class="chat">
+            <h1>Chat en Tiempo Real</h1>
+            <ul id="listaMensajes"></ul>
+
+            <p id="escribiendoMensaje" class="mensajeEscribiendo"></p>
+            <div class="input-container">
+                <input type="text" id="input" placeholder="Escribe tu mensaje...">
+                <button id="enviar">Enviar</button>
+
+                <input type="text" id="inputImagen" placeholder="URL de imagen">
+                <button id="enviarImagen">📷</button>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
