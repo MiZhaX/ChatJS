@@ -6,7 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chat Global</title>
     <script src="/socket.io/socket.io.js"></script>
-    <link rel="stylesheet" href="./css/main.css ">
     <script>
         let socket = io();
         let usuario = {};
@@ -72,12 +71,6 @@
                 mensajeInput.value = "";
             });
 
-            btnImagen.addEventListener("click", () => {
-                if (!imagenInput.value.trim()) return;
-                socket.emit("imagen", { ...usuario, urlImagen: imagenInput.value });
-                imagenInput.value = "";
-            });
-
             mensajeInput.addEventListener("keypress", (e) => {
                 if (e.key === "Enter") btnEnviar.click();
 
@@ -90,30 +83,67 @@
             });
 
             document.getElementById("subirImagen").addEventListener("change", function (event) {
+                document.getElementById("mensajeError").classList.add("hidden");
+
                 let file = event.target.files[0];
                 if (file) {
+                    let validExtensions = ["image/png", "image/jpeg", "image/jpg", "image/gif"];
+
+                    if (!validExtensions.includes(file.type)) {
+                        mostrarMensajeError("Solo se permiten archivos de imagen.");
+                        event.target.value = "";
+                        return;
+                    }
+
                     let reader = new FileReader();
                     reader.onload = function (e) {
                         let imagenSubida = document.getElementById("imagenPreview");
                         imagenSubida.src = e.target.result;
                         imagenSubida.classList.remove("hidden");
 
-                        // Quitar la selección de otros avatares
                         document.querySelectorAll(".avatar").forEach(avatar => avatar.classList.remove("selected"));
                         imagenSubida.classList.add("selected");
 
-                        usuario.avatar = e.target.result; 
+                        usuario.avatar = e.target.result;
                     };
                     reader.readAsDataURL(file);
                 }
             });
 
+            document.getElementById("enviarArchivo").addEventListener("click", () => {
+                const archivoInput = document.getElementById("inputArchivo");
+                const archivo = archivoInput.files[0];
+
+                if (!archivo) {
+                    alert("Selecciona un archivo antes de enviarlo.");
+                    return;
+                }
+
+                const reader = new FileReader();
+
+                reader.onload = function (event) {
+                    const datosArchivo = {
+                        nombre: archivo.name,
+                        tipo: archivo.type,
+                        contenido: event.target.result,
+                        usuario: usuario
+                    };
+                    socket.emit("archivo_subido", datosArchivo);
+                    document.getElementById("inputArchivo").value = "";
+                };
+                reader.onerror = function () {
+                    console.error("Error al leer el archivo.");
+                };
+
+                reader.readAsDataURL(archivo); 
+            });
+
             socket.on("holaServidor", (datos) => {
                 let li = document.createElement("li");
-                li.innerHTML = `<img src='${datos.avatar}' class='avatar'> 
-                    <b>${datos.nombre} (${datos.estado}):</b> 
+                li.innerHTML = `
+                    <b>${datos.nombre}:</b> <span style="font-size: 0.8em; color: gray;">(${datos.hora})</span>
                     <p>${datos.mensaje} </p>
-                    <span style="font-size: 0.8em; color: gray;">(${datos.hora})</span>`;
+                    `;
                 listaMensajes.appendChild(li);
             });
 
@@ -144,24 +174,38 @@
                 });
             });
 
-            // Mostrar mensaje de "escribiendo..."
             socket.on("escribiendo", (usuario) => {
                 document.getElementById("escribiendoMensaje").textContent = `${usuario.nombre} está escribiendo...`;
             });
 
-            // Ocultar el mensaje después de 2 segundos
             socket.on("dejoDeEscribir", () => {
                 document.getElementById("escribiendoMensaje").textContent = "";
             });
+
+            socket.on("archivoRecibido", (datos) => {
+                let li = document.createElement("li");
+
+                let contenido = `<b>${datos.usuario.nombre}: <span style="font-size: 0.8em; color: gray;">(${datos.hora})</span></b> `;
+
+                if (datos.tipo.startsWith("image/")) {
+                    contenido += `<br><img src="${datos.contenido}" style="max-width: 300px;">`;
+                } else {
+                    contenido += `<br><a href="${datos.contenido}" download="${datos.nombre}">📄 Descargar ${datos.nombre}</a>`;
+                }
+
+                li.innerHTML = contenido;
+                document.getElementById("listaMensajes").appendChild(li);
+            });
+
         };
     </script>
+    <link rel="stylesheet" href="./css/main.css ">
 </head>
 
 <body>
-    <!-- Pantalla de inicio de sesión -->
     <div id="login-container" class="loginContainer">
         <div id="login">
-            <h1>Bienvenido al Chat</h1>
+            <h1>ChatJS</h1>
             <input type="text" id="nombre" placeholder="Escribe tu nombre"><br>
             <input type="text" id="estado" placeholder="Estado (Ej: Disponible)"><br>
 
@@ -197,8 +241,8 @@
                 <input type="text" id="input" placeholder="Escribe tu mensaje...">
                 <button id="enviar">Enviar</button>
 
-                <input type="text" id="inputImagen" placeholder="URL de imagen">
-                <button id="enviarImagen">📷</button>
+                <input type="file" id="inputArchivo">
+                <button id="enviarArchivo">Enviar Archivo</button>
             </div>
         </div>
     </div>

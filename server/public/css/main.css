@@ -22,7 +22,8 @@ body {
 .mensajeError {
     color: red;
     font-weight: bold;
-    margin-top: 10px;
+    margin-top: 0px;
+    margin-bottom: 10px;
     transition: opacity 0.5s;
 }
 

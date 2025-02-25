@@ -20,6 +20,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 io.on('connection', (socket) => {
   console.log('Un nuevo usuario se ha conectado.');
 
+  socket.on("archivo_subido", (datosArchivo) => {
+    let hora = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+    io.emit("archivoRecibido", { ...datosArchivo, hora });
+  });
+
   socket.on('nombre', (usuario) => {
     socket.usuario = usuario;
 
@@ -34,10 +39,9 @@ io.on('connection', (socket) => {
   socket.on('mensaje', (datos) => {
     let hora = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
     io.emit("holaServidor", { ...datos, hora });
-});
+  });
 
   socket.on('imagen', (datos) => {
-    console.log(datos);
     io.emit("enviarImagen", datos);
   });
 
