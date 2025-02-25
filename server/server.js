@@ -7,7 +7,7 @@ const app = express();
 const server = createServer(app);
 const io = new Server(server);
 
-const port = 3000;
+const port = process.env.port || 3000;
 let usuariosConectados = [];
 
 app.get('/', (req, res) => {
