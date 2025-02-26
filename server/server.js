@@ -28,10 +28,8 @@ io.on('connection', (socket) => {
   socket.on('nombre', (usuario) => {
     socket.usuario = usuario;
 
-    // Agregar el usuario a la lista
     usuariosConectados.push(usuario);
 
-    // Notificar a todos los clientes
     io.emit('nuevaConexion', usuario);
     io.emit('actualizarUsuarios', usuariosConectados);
   });
